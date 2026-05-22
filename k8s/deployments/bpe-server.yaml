@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bpe-server
+  namespace: marshal
+  labels:
+    app: bpe-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bpe-server
+  template:
+    metadata:
+      labels:
+        app: bpe-server
+    spec:
+      containers:
+        - name: bpe-server
+          image: marshal/bpe-server:latest
+          ports:
+            - containerPort: 8090
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          envFrom:
+            - configMapRef:
+                name: marshal-config
+            - secretRef:
+                name: marshal-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /bpe/health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /bpe/health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        # Add cloud-sql-proxy sidecar for GCP Cloud SQL

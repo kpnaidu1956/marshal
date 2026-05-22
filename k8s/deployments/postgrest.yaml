@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgrest
+  namespace: marshal
+  labels:
+    app: postgrest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgrest
+  template:
+    metadata:
+      labels:
+        app: postgrest
+    spec:
+      containers:
+        - name: postgrest
+          image: postgrest/postgrest:v12.2.3
+          ports:
+            - containerPort: 3000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: marshal-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGRST_DB_URI
+              value: "postgres://marshal_app:$(DB_PASSWORD)@127.0.0.1:5432/marshal_db"
+            - name: PGRST_DB_SCHEMAS
+              value: "api"
+            - name: PGRST_DB_ANON_ROLE
+              value: "web_anon"
+            - name: PGRST_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: marshal-secrets
+                  key: POSTGREST_JWT_SECRET
+            - name: PGRST_JWT_AUD
+              value: "postgrest"
+            - name: PGRST_SERVER_PORT
+              value: "3000"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        # Add cloud-sql-proxy sidecar for GCP Cloud SQL

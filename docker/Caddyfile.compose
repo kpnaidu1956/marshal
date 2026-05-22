@@ -1,0 +1,39 @@
+:80 {
+    # PostgREST
+    handle /api/db/* {
+        uri strip_prefix /api/db
+        reverse_proxy postgrest:3000
+    }
+
+    # BPE API
+    handle /bpe/* {
+        reverse_proxy bpe-server:8090
+    }
+
+    # RAG API
+    handle /api/* {
+        reverse_proxy goal-rag:8080
+    }
+
+    # React SPA
+    handle /marshal/* {
+        reverse_proxy frontend:80
+    }
+
+    # Health check
+    handle /health {
+        respond "OK" 200
+    }
+
+    handle {
+        redir /marshal/ permanent
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    encode gzip
+}

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marshal-config
+  namespace: marshal
+data:
+  RUST_LOG: "info"
+  RAG_HOST: "0.0.0.0"
+  RAG_PORT: "8080"
+  POSTGRES_HOST: "127.0.0.1"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "marshal_db"
+  POSTGRES_USER: "marshal_app"
+  USE_PGVECTOR: "true"
+  BPE_HOST: "0.0.0.0"
+  BPE_PORT: "8090"
+  BPE_PG_HOST: "127.0.0.1"
+  BPE_PG_PORT: "5432"
+  BPE_PG_DBNAME: "marshal_db"
+  BPE_PG_USER: "marshal_app"
+  BPE_RAG_URL: "http://goal-rag-svc:8080"
+  OLLAMA_BASE_URL: "http://ollama-svc:11434"
+  APP_NAME: "Marshal"
+  APP_DOMAIN: "localhost"
+  APP_COLOR: "#7C83BC"
+  TRIAL_DURATION_DAYS: "90"
+  TRIAL_MAX_USERS: "25"
+  TRIAL_MAX_STORAGE_GB: "10"
+  TRIAL_MAX_DOCUMENTS: "200"
+  RESEND_FROM_ADDRESS: ""
+  RECAPTCHA_SITE_KEY: ""

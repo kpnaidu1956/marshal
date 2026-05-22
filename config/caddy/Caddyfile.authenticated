@@ -1,0 +1,61 @@
+# Caddyfile with API Key Authentication
+# Only allows requests with valid X-API-Key header
+
+# Replace with your values
+{$DOMAIN:localhost} {
+    # API Key validation - reject requests without valid key
+    @unauthorized {
+        not header X-API-Key {$API_KEY}
+    }
+
+    # Allow health checks without auth (for load balancers/monitoring)
+    @health_check {
+        path /health /ready
+    }
+
+    # Block unauthorized requests to protected endpoints
+    handle @health_check {
+        reverse_proxy localhost:8080
+    }
+
+    handle @unauthorized {
+        respond "Unauthorized" 401
+    }
+
+    # Authenticated requests go through
+    handle {
+        reverse_proxy localhost:8080 {
+            health_uri /health
+            health_interval 30s
+
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+
+            # Remove API key before forwarding (security)
+            header_up -X-API-Key
+        }
+    }
+
+    request_body {
+        max_size 100MB
+    }
+
+    encode gzip zstd
+
+    log {
+        output file {$HOME}/marshal/logs/caddy.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+        format json
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}

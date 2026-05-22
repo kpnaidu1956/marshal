@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #0f1117;
+  color: #e1e4ed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1d27;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d3140;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b8fa3;
+}
+
+/* Citation highlight */
+mark {
+  background: rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* JSON syntax colors */
+.json-key { color: #7dd3fc; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-bool { color: #c084fc; }
+.json-null { color: #94a3b8; }
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2d3140;
+  border-top-color: #6c8cff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}

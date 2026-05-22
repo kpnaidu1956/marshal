@@ -1,0 +1,32 @@
+[Unit]
+Description=RuVector RAG Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rag
+Group=rag
+WorkingDirectory=/opt/ruvector-rag
+ExecStart=/opt/ruvector-rag/ruvector-rag-server
+Restart=always
+RestartSec=5
+
+# Environment
+Environment="RUST_LOG=info"
+Environment="RAG_HOST=127.0.0.1"
+Environment="RAG_PORT=8080"
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=4G
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ruvector-rag/data /var/log/ruvector-rag
+
+[Install]
+WantedBy=multi-user.target

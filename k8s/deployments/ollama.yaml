@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: marshal
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_MODELS
+              value: "/models"
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+            limits:
+              cpu: "4000m"
+              memory: "12Gi"
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /models
+          startupProbe:
+            httpGet:
+              path: /
+              port: 11434
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 15
+      initContainers:
+        - name: pull-models
+          image: ollama/ollama:latest
+          env:
+            - name: OLLAMA_MODELS
+              value: "/models"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              ollama serve &
+              sleep 10
+              ollama pull nomic-embed-text
+              ollama pull gemma2:9b
+              kill %1 || true
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+            limits:
+              cpu: "4000m"
+              memory: "12Gi"
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-models-pvc

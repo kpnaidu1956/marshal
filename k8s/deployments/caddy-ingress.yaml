@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caddy-ingress
+  namespace: marshal
+  labels:
+    app: caddy-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caddy-ingress
+  template:
+    metadata:
+      labels:
+        app: caddy-ingress
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2-alpine
+          ports:
+            - containerPort: 80
+              name: http
+            - containerPort: 443
+              name: https
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 10
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: caddy-config
+        - name: caddy-data
+          emptyDir: {}
+        - name: caddy-config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-config
+  namespace: marshal
+data:
+  Caddyfile: |
+    :80 {
+        # PostgREST
+        handle /api/db/* {
+            uri strip_prefix /api/db
+            reverse_proxy postgrest-svc:3000
+        }
+        # BPE API
+        handle /bpe/* {
+            reverse_proxy bpe-server-svc:8090
+        }
+        # RAG API (includes /api/trial/* public endpoints)
+        handle /api/* {
+            reverse_proxy goal-rag-svc:8080
+        }
+        # React SPA
+        handle /marshal/* {
+            reverse_proxy frontend-svc:80
+        }
+        # Health check
+        handle /health {
+            respond "OK" 200
+        }
+        handle {
+            redir /marshal/ permanent
+        }
+        header {
+            X-Content-Type-Options nosniff
+            X-Frame-Options DENY
+            Referrer-Policy strict-origin-when-cross-origin
+            Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        }
+        encode gzip
+    }

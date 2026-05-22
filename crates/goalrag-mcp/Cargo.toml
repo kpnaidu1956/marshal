@@ -1,0 +1,19 @@
+[package]
+name = "goalrag-mcp"
+version.workspace = true
+edition.workspace = true
+description = "MCP server proxy for Goal-RAG LLM tools"
+
+[[bin]]
+name = "goalrag-mcp"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }

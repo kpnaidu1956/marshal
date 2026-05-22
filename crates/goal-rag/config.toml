@@ -1,0 +1,113 @@
+# Goal RAG Configuration
+# Location: crates/goal-rag/config.toml
+
+# Backend: "local" (Ollama + HNSW) or "gcp" (Vertex AI + Gemini + GCS)
+# Trial uses local backend (no Vertex AI credentials)
+backend = "local"
+
+[server]
+host = "0.0.0.0"
+port = 8080
+enable_cors = true
+max_upload_size = 104857600  # 100MB
+
+[embeddings]
+model = "nomic-embed-text"
+dimensions = 768
+batch_size = 32
+max_length = 256
+cache_dir = "/tmp/ruvector-rag/models"
+
+[chunking]
+chunk_size = 1024
+chunk_overlap = 200
+min_chunk_size = 100
+respect_sentences = true
+
+[llm]
+# Ollama running as K8s service (or localhost for local dev)
+base_url = "http://localhost:11434"
+embed_model = "nomic-embed-text"
+generate_model = "phi3"
+temperature = 0.3
+timeout_secs = 120
+max_retries = 2
+context_size = 4096
+
+[vector_db]
+storage_path = "/var/lib/ruvector-rag/vectors.db"
+hnsw_m = 32
+hnsw_ef_construction = 200
+hnsw_ef_search = 250
+
+[external_parser]
+enabled = true
+unstructured_url = "https://api.unstructured.io/general/v0/general"
+use_libreoffice_fallback = true
+prefer_local_tools = true
+unstructured_api_key = ""  # Set via UNSTRUCTURED_API_KEY env var
+
+[processing]
+file_timeout_secs = 600
+parallel_files = 2
+parallel_embeddings = 2
+
+[processing.tiered]
+enabled = true
+# Timeouts per tier (in seconds)
+fast_timeout_secs = 300      # 5 minutes for <10MB files
+medium_timeout_secs = 600    # 10 minutes for 10-100MB files
+heavy_timeout_secs = 1200    # 20 minutes for 100MB-1GB files
+complex_timeout_secs = 1800  # 30 minutes for scanned/encrypted PDFs
+
+# ============================================================
+# GCP Configuration (required when backend = "gcp")
+# Uncomment and fill in your values to enable GCP backend.
+# ============================================================
+# [gcp]
+# service_account_key_path = "/path/to/key.json"
+# project_id = "your-project-id"
+# location = "us-central1"
+# gcs_bucket = "your-bucket"
+# gcs_originals_prefix = "originals/"
+# gcs_plaintext_prefix = "plaintext/"
+# vector_search_endpoint = "projects/YOUR_PROJECT/locations/us-central1/indexEndpoints/YOUR_ENDPOINT"
+# vector_search_index = "projects/YOUR_PROJECT/locations/us-central1/indexes/YOUR_INDEX"
+# vector_search_public_domain = "YOUR_DOMAIN.us-central1-YOUR_PROJECT.vdb.vertexai.goog"
+# deployed_index_id = "your_deployed_index_id"
+# embedding_model = "text-embedding-005"
+# generation_model = "gemini-2.5-pro"
+# hybrid_mode = "hybrid_local"
+
+# ============================================================
+# PostgreSQL Configuration (optional - for learning from database)
+# ============================================================
+# Uncomment to enable real-time learning from PostgreSQL database changes
+#
+# [postgres]
+# host = "localhost"
+# port = 5432
+# database = "goalrag"
+# user = "ragdba"
+# password = ""  # Set via POSTGRES_PASSWORD env var for security
+# pool_size = 5
+# schema = "api"
+# learning_enabled = true
+# learning_batch_size = 10
+# listen_tables = ["tasks", "goals", "users", "organizations", "messages", "task_comments"]
+
+# ============================================================
+# PostgreSQL Configuration (for trial deployment)
+# Password is overridden by POSTGRES_PASSWORD env var at runtime
+# Override any value with env vars: POSTGRES_HOST, POSTGRES_DATABASE, etc.
+# ============================================================
+[postgres]
+host = "127.0.0.1"
+port = 5432
+database = "marshal_db"
+user = "marshal_app"
+password = ""
+pool_size = 15
+learning_enabled = true
+schema = "api"
+use_pgvector = true

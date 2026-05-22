@@ -1,0 +1,44 @@
+[package]
+name = "bpe-core"
+version.workspace = true
+edition.workspace = true
+description = "Business Process Engine - core domain logic"
+
+[dependencies]
+# HTTP framework (for middleware, error responses)
+axum = { version = "0.7", features = ["json"] }
+
+# Database
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1"] }
+deadpool-postgres = "0.14"
+postgres-types = { version = "0.2", features = ["derive"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Auth
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+
+# Encryption (credentials at rest)
+ring = "0.17"
+
+# HTTP client (for RAG queries, external integrations)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Async
+tokio = { workspace = true, features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Utilities
+uuid = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+dashmap = "6"
+rust_decimal = { version = "1", features = ["db-tokio-postgres"] }
+indexmap = "2"

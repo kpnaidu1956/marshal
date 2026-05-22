@@ -1,0 +1,3 @@
+RAG systems combine retrieval and generation. First, relevant documents are retrieved
+from a knowledge base using vector similarity search. Then, a language model generates
+an answer based on the retrieved context. This ensures answers are grounded in facts.

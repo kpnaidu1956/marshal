@@ -1,0 +1,31 @@
+# Multi-stage Rust build for bpe-server
+FROM rust:latest AS builder
+
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY examples/ examples/
+COPY benchmarks/ benchmarks/
+COPY tests/ tests/
+
+RUN cargo build --release -p bpe-server
+
+# Runtime stage
+# Must match builder's glibc (rust:latest uses trixie)
+FROM debian:trixie-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libssl3 libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/bpe-server /usr/local/bin/bpe-server
+
+ENV RUST_LOG=info
+ENV BPE_HOST=0.0.0.0
+ENV BPE_PORT=8090
+
+RUN useradd -r -u 1000 appuser
+USER appuser
+
+EXPOSE 8090
+CMD ["bpe-server"]

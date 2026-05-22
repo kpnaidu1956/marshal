@@ -1,0 +1,89 @@
+# Docker Compose for local goal-rag development
+# Includes Ollama for embeddings and LLM
+
+version: '3.8'
+
+services:
+  # Goal-RAG Server
+  goal-rag:
+    build:
+      context: ../..
+      dockerfile: crates/goal-rag/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info,goal_rag=debug
+      - RAG_HOST=0.0.0.0
+      - RAG_PORT=8080
+      - OLLAMA_HOST=http://ollama:11434
+      - RATE_LIMIT_ENABLED=true
+      - MAX_UPLOAD_SIZE=104857600
+      # For GCP (mount service account key)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-key.json
+      - GCS_BUCKET=${GCS_BUCKET:-}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+    volumes:
+      - rag-data:/app/data
+      - ./config.toml:/app/config/config.toml:ro
+      # Mount GCP credentials (optional)
+      - ${GCP_KEY_PATH:-./gcp-key.json}:/app/secrets/gcp-key.json:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Ollama for embeddings and LLM
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Ollama model initialization (runs once)
+  ollama-init:
+    image: curlimages/curl:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling embedding model..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "nomic-embed-text"}'
+        echo "Pulling LLM model..."
+        curl -X POST http://ollama:11434/api/pull -d '{"name": "llama3.2"}'
+        echo "Models ready!"
+    restart: "no"
+
+volumes:
+  rag-data:
+    driver: local
+  ollama-models:
+    driver: local
+
+networks:
+  default:
+    name: goal-rag-network

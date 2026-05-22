@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goal-RAG Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #232733; --border: #2d3140;
+  --text: #e1e4ed; --text2: #8b8fa3; --accent: #6c8cff; --accent2: #4a6adf;
+  --green: #4ade80; --red: #f87171; --yellow: #fbbf24; --orange: #fb923c;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; font-size: 14px; }
+a { color: var(--accent); text-decoration: none; }
+
+/* Sidebar */
+#sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+#sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); }
+#sidebar-header h1 { font-size: 16px; font-weight: 600; }
+#sidebar-header p { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.nav-section { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.nav-section-title { padding: 4px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+.nav-item { display: block; padding: 6px 16px 6px 28px; font-size: 13px; color: var(--text2); cursor: pointer; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent2); color: #fff; }
+.nav-badge { font-size: 10px; background: var(--surface2); color: var(--text2); padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+
+/* Main */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#topbar { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--surface); }
+#topbar label { font-size: 12px; color: var(--text2); }
+#topbar select, #topbar input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+#topbar select { min-width: 220px; }
+#api-url-input { width: 260px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot.ok { background: var(--green); }
+.status-dot.err { background: var(--red); }
+
+#content { flex: 1; overflow-y: auto; padding: 20px; }
+
+/* Panels */
+.panel { display: none; }
+.panel.active { display: block; }
+.panel-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.panel-desc { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+
+/* Forms */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 4px; }
+.form-group label .req { color: var(--red); }
+.form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; font-family: inherit; }
+.form-group textarea { min-height: 80px; resize: vertical; }
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-hint { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* Buttons */
+.btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; font-family: inherit; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: var(--red); color: #fff; }
+
+/* Result */
+#result-bar { display: none; padding: 8px 16px; background: var(--surface); border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+#result-bar .meta { display: flex; gap: 16px; align-items: center; }
+#result-bar .tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+#result-bar .tag.ok { background: rgba(74,222,128,0.15); color: var(--green); }
+#result-bar .tag.err { background: rgba(248,113,113,0.15); color: var(--red); }
+#result-panel { max-height: 45vh; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--border); }
+#result-json { padding: 12px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+
+/* JSON syntax */
+.json-key { color: #7dd3fc; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-bool { color: #c084fc; }
+.json-null { color: #94a3b8; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.stat-card { background: var(--surface2); border-radius: 8px; padding: 12px; text-align: center; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* Loading */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>Goal-RAG</h1>
+    <p>Testing Dashboard</p>
+  </div>
+  <div id="nav-tools"></div>
+  <div class="nav-section">
+    <div class="nav-section-title">RAG Query</div>
+    <button class="nav-item" onclick="showPanel('rag')">Query Documents</button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Analytics</div>
+    <button class="nav-item" onclick="showPanel('analytics')">Embeddings</button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Files</div>
+    <button class="nav-item" onclick="showPanel('files')">File Manager</button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">System</div>
+    <button class="nav-item" onclick="showPanel('system')">Health &amp; Info</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <label>API:</label>
+    <input id="api-url-input" type="text" value="" placeholder="http://localhost:8080">
+    <label>Org:</label>
+    <select id="org-select">
+      <option value="demo-org">demo-org</option>
+      <option value="demo-org">demo-org</option>
+    </select>
+    <span class="status-dot" id="status-dot" title="API status"></span>
+    <span id="status-text" style="font-size:12px;color:var(--text2)">Checking...</span>
+  </div>
+
+  <div id="content">
+    <!-- Tool panels generated dynamically -->
+    <div id="panel-welcome" class="panel active">
+      <h2 class="panel-title">Welcome</h2>
+      <p class="panel-desc">Select a tool from the sidebar to get started. Tools are auto-loaded from the API manifest.</p>
+      <div id="tool-stats" class="stat-grid" style="margin-top:16px;"></div>
+    </div>
+
+    <div id="panel-rag" class="panel">
+      <h2 class="panel-title">RAG Query</h2>
+      <p class="panel-desc">Query documents using embeddings or literal text search</p>
+      <div class="card">
+        <div class="card-title">v2 Query (Recommended)</div>
+        <div class="form-group">
+          <label>Question</label>
+          <textarea id="rag-question" placeholder="Ask a question about your documents..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Top K</label>
+            <input id="rag-topk" type="number" value="5" min="1" max="50">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" onclick="executeRagQuery('v2')">Query v2</button>
+            <button class="btn btn-primary" style="margin-left:8px;background:var(--surface2);color:var(--text);" onclick="executeRagQuery('v1')">Query v1</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">String Search</div>
+        <div class="form-group">
+          <label>Search Text</label>
+          <input id="rag-string" type="text" placeholder="Exact text to find...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Limit</label>
+            <input id="rag-string-limit" type="number" value="10" min="1" max="100">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" onclick="executeStringSearch()">Search</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-analytics" class="panel">
+      <h2 class="panel-title">Analytics &amp; Embeddings</h2>
+      <p class="panel-desc">Entity embedding intelligence</p>
+      <div class="card">
+        <div class="card-title">Embedding Stats</div>
+        <button class="btn btn-primary btn-sm" onclick="fetchEmbeddingStats()">Load Stats</button>
+        <div id="embedding-stats" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Semantic Search (Entities)</div>
+        <div class="form-group">
+          <label>Query</label>
+          <input id="emb-query" type="text" placeholder="Natural language search...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Entity Type (optional)</label>
+            <select id="emb-type">
+              <option value="">All</option>
+              <option value="task">task</option>
+              <option value="goal">goal</option>
+              <option value="task_comment">task_comment</option>
+              <option value="message">message</option>
+              <option value="user">user</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Top K</label>
+            <input id="emb-topk" type="number" value="10" min="1" max="50">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="searchEmbeddings()">Search</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Actions</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="triggerBackfill()">Backfill Embeddings</button>
+          <button class="btn btn-primary btn-sm" onclick="triggerSentimentBackfill()">Backfill Sentiment</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-files" class="panel">
+      <h2 class="panel-title">File Manager</h2>
+      <p class="panel-desc">Track uploaded files and ingestion status</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-primary btn-sm" onclick="loadFiles()">List Files</button>
+        <button class="btn btn-primary btn-sm" onclick="loadFileStats()">Stats</button>
+        <button class="btn btn-primary btn-sm" onclick="loadFailedFiles()">Failed Files</button>
+      </div>
+      <div id="files-content"></div>
+    </div>
+
+    <div id="panel-system" class="panel">
+      <h2 class="panel-title">System</h2>
+      <p class="panel-desc">Health checks, capabilities, and server info</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-primary btn-sm" onclick="loadSystemInfo('health')">Health</button>
+        <button class="btn btn-primary btn-sm" onclick="loadSystemInfo('info')">API Info</button>
+        <button class="btn btn-primary btn-sm" onclick="loadSystemInfo('capabilities')">Capabilities</button>
+        <button class="btn btn-primary btn-sm" onclick="loadSystemInfo('parsers')">Parsers</button>
+      </div>
+      <div id="system-content"></div>
+    </div>
+  </div>
+
+  <div id="result-bar">
+    <div class="meta">
+      <span id="result-status"></span>
+      <span id="result-summary"></span>
+      <span id="result-meta"></span>
+      <button class="btn btn-sm" style="margin-left:auto;background:var(--surface2);color:var(--text2);" onclick="toggleResult()">Toggle</button>
+      <button class="btn btn-sm" style="background:var(--surface2);color:var(--text2);" onclick="copyResult()">Copy</button>
+    </div>
+  </div>
+  <div id="result-panel">
+    <div id="result-json"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// State
+// ============================================================================
+let toolManifest = [];
+let lastResult = null;
+let resultVisible = true;
+
+function getApiUrl() { return document.getElementById('api-url-input').value.replace(/\/+$/, ''); }
+function getOrg() { return document.getElementById('org-select').value; }
+
+// ============================================================================
+// API helpers
+// ============================================================================
+async function apiFetch(path, options = {}) {
+  const url = getApiUrl() + path;
+  const resp = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
+  const data = await resp.json();
+  return { status: resp.status, ok: resp.ok, data };
+}
+
+function showResult(data, summary, success, meta) {
+  lastResult = data;
+  const bar = document.getElementById('result-bar');
+  const panel = document.getElementById('result-panel');
+  bar.style.display = 'block';
+  panel.style.display = resultVisible ? 'block' : 'none';
+  document.getElementById('result-status').innerHTML = success
+    ? '<span class="tag ok">SUCCESS</span>'
+    : '<span class="tag err">ERROR</span>';
+  document.getElementById('result-summary').textContent = summary || '';
+  document.getElementById('result-meta').textContent = meta || '';
+  document.getElementById('result-json').innerHTML = syntaxHighlight(JSON.stringify(data, null, 2));
+}
+
+function toggleResult() {
+  resultVisible = !resultVisible;
+  document.getElementById('result-panel').style.display = resultVisible ? 'block' : 'none';
+}
+
+function copyResult() {
+  if (lastResult) navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2));
+}
+
+function syntaxHighlight(json) {
+  return json.replace(/("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|null)/g, (match) => {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+      cls = /:$/.test(match) ? 'json-key' : 'json-string';
+    } else if (/true|false/.test(match)) {
+      cls = 'json-bool';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return `<span class="${cls}">${match}</span>`;
+  });
+}
+
+// ============================================================================
+// Panel navigation
+// ============================================================================
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const panel = document.getElementById('panel-' + id);
+  if (panel) panel.classList.add('active');
+  const btn = document.querySelector(`[data-panel="${id}"]`);
+  if (btn) btn.classList.add('active');
+}
+
+// ============================================================================
+// Tool Manifest & Dynamic Forms
+// ============================================================================
+async function fetchManifest() {
+  try {
+    const { data } = await apiFetch('/api/tools/manifest');
+    toolManifest = data;
+    buildToolNav();
+    buildToolStats();
+    checkHealth();
+  } catch (e) {
+    document.getElementById('status-dot').className = 'status-dot err';
+    document.getElementById('status-text').textContent = 'Connection failed';
+  }
+}
+
+function buildToolNav() {
+  const categories = {};
+  toolManifest.forEach(t => {
+    const cat = t.category || 'other';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(t);
+  });
+
+  const nav = document.getElementById('nav-tools');
+  nav.innerHTML = '';
+
+  const order = ['read', 'write', 'search', 'report', 'sql'];
+  const labels = { read: 'Read Tools', write: 'Write Tools', search: 'Search Tools', report: 'Report Tools', sql: 'SQL' };
+
+  order.forEach(cat => {
+    if (!categories[cat]) return;
+    const section = document.createElement('div');
+    section.className = 'nav-section';
+    section.innerHTML = `<div class="nav-section-title">${labels[cat] || cat} <span class="nav-badge">${categories[cat].length}</span></div>`;
+    categories[cat].forEach(tool => {
+      const btn = document.createElement('button');
+      btn.className = 'nav-item';
+      btn.textContent = tool.name;
+      btn.dataset.panel = 'tool-' + tool.name;
+      btn.onclick = () => showToolPanel(tool);
+      section.appendChild(btn);
+    });
+    nav.appendChild(section);
+  });
+}
+
+function buildToolStats() {
+  const categories = {};
+  toolManifest.forEach(t => {
+    const cat = t.category || 'other';
+    categories[cat] = (categories[cat] || 0) + 1;
+  });
+  const grid = document.getElementById('tool-stats');
+  grid.innerHTML = `
+    <div class="stat-card"><div class="stat-value">${toolManifest.length}</div><div class="stat-label">Total Tools</div></div>
+    ${Object.entries(categories).map(([k,v]) => `<div class="stat-card"><div class="stat-value">${v}</div><div class="stat-label">${k}</div></div>`).join('')}
+  `;
+}
+
+function showToolPanel(tool) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const btn = document.querySelector(`[data-panel="tool-${tool.name}"]`);
+  if (btn) btn.classList.add('active');
+
+  let panel = document.getElementById('panel-tool-' + tool.name);
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'panel-tool-' + tool.name;
+    panel.className = 'panel';
+    panel.innerHTML = buildToolForm(tool);
+    document.getElementById('content').appendChild(panel);
+  }
+  panel.classList.add('active');
+}
+
+function buildToolForm(tool) {
+  const props = tool.parameters?.properties || {};
+  const required = tool.parameters?.required || [];
+
+  let fields = '';
+  const pairs = [];
+  let currentPair = [];
+
+  Object.entries(props).forEach(([name, schema]) => {
+    if (name === 'organization_id') return; // auto-filled from topbar
+    const isReq = required.includes(name);
+    const field = buildField(tool.name, name, schema, isReq);
+    currentPair.push(field);
+    if (currentPair.length === 2) {
+      pairs.push(`<div class="form-row">${currentPair.join('')}</div>`);
+      currentPair = [];
+    }
+  });
+  if (currentPair.length) pairs.push(`<div class="form-row">${currentPair.join('')}</div>`);
+  fields = pairs.join('');
+
+  const catColors = { read: 'var(--accent)', write: 'var(--orange)', search: 'var(--green)', report: 'var(--yellow)', sql: 'var(--red)' };
+  const catColor = catColors[tool.category] || 'var(--text2)';
+
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <h2 class="panel-title">${tool.name}</h2>
+      <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${catColor}20;color:${catColor};font-weight:600;">${tool.category}</span>
+    </div>
+    <p class="panel-desc">${tool.description}</p>
+    <div class="card">
+      <form onsubmit="executeTool('${tool.name}', this); return false;">
+        ${fields}
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button type="submit" class="btn btn-primary" id="btn-${tool.name}">Execute</button>
+          <button type="reset" class="btn" style="background:var(--surface2);color:var(--text2);">Clear</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function buildField(toolName, name, schema, isReq) {
+  const label = `${name}${isReq ? ' <span class="req">*</span>' : ''}`;
+  const id = `field-${toolName}-${name}`;
+
+  if (schema.enum) {
+    const opts = schema.enum.map(v => `<option value="${v}">${v}</option>`).join('');
+    return `<div class="form-group"><label>${label}</label><select id="${id}" name="${name}" ${isReq ? 'required' : ''}><option value="">-- select --</option>${opts}</select>${schema.description ? `<div class="form-hint">${schema.description}</div>` : ''}</div>`;
+  }
+
+  if (schema.type === 'boolean') {
+    return `<div class="form-group"><label>${label}</label><select id="${id}" name="${name}"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>`;
+  }
+
+  if (name === 'sql' || name === 'description' || name === 'content') {
+    return `<div class="form-group"><label>${label}</label><textarea id="${id}" name="${name}" placeholder="${schema.description || ''}" ${isReq ? 'required' : ''}></textarea>${schema.description && name !== 'sql' ? `<div class="form-hint">${schema.description}</div>` : ''}</div>`;
+  }
+
+  const inputType = schema.type === 'integer' || schema.type === 'number' ? 'number' : 'text';
+  const extra = [];
+  if (schema.default !== undefined) extra.push(`placeholder="default: ${schema.default}"`);
+  else if (schema.description) extra.push(`placeholder="${schema.description}"`);
+  if (schema.minimum !== undefined) extra.push(`min="${schema.minimum}"`);
+  if (schema.maximum !== undefined) extra.push(`max="${schema.maximum}"`);
+
+  return `<div class="form-group"><label>${label}</label><input id="${id}" name="${name}" type="${inputType}" ${isReq ? 'required' : ''} ${extra.join(' ')}>${schema.description ? `<div class="form-hint">${schema.description}</div>` : ''}</div>`;
+}
+
+async function executeTool(toolName, form) {
+  const btn = document.getElementById('btn-' + toolName);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running...';
+
+  const formData = new FormData(form);
+  const params = { organization_id: getOrg() };
+  for (const [key, value] of formData.entries()) {
+    if (value === '') continue;
+    const tool = toolManifest.find(t => t.name === toolName);
+    const schema = tool?.parameters?.properties?.[key];
+    if (schema?.type === 'integer') params[key] = parseInt(value);
+    else if (schema?.type === 'number') params[key] = parseFloat(value);
+    else if (schema?.type === 'boolean') params[key] = value === 'true';
+    else params[key] = value;
+  }
+
+  try {
+    const start = performance.now();
+    const { data, ok } = await apiFetch('/api/tools/execute', {
+      method: 'POST',
+      body: JSON.stringify({ tool: toolName, params }),
+    });
+    const elapsed = Math.round(performance.now() - start);
+
+    if (data.success !== undefined) {
+      showResult(data, data.summary, data.success, `${data.row_count} rows | ${data.execution_ms}ms server | ${elapsed}ms total`);
+    } else {
+      showResult(data, ok ? 'Response received' : 'Error', ok, `${elapsed}ms`);
+    }
+  } catch (e) {
+    showResult({ error: e.message }, e.message, false, '');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Execute';
+  }
+}
+
+// ============================================================================
+// RAG Query
+// ============================================================================
+async function executeRagQuery(version) {
+  const question = document.getElementById('rag-question').value;
+  if (!question) return;
+  const topK = parseInt(document.getElementById('rag-topk').value) || 5;
+  const org = getOrg();
+
+  try {
+    const path = version === 'v2' ? '/api/v2/query' : '/api/query';
+    const body = version === 'v2'
+      ? { question, organization_id: org, top_k: topK }
+      : { question, organization_id: org, top_k: topK };
+    const start = performance.now();
+    const { data, ok } = await apiFetch(path, { method: 'POST', body: JSON.stringify(body) });
+    const elapsed = Math.round(performance.now() - start);
+    showResult(data, `RAG ${version} query`, ok, `${elapsed}ms`);
+  } catch (e) {
+    showResult({ error: e.message }, e.message, false, '');
+  }
+}
+
+async function executeStringSearch() {
+  const query = document.getElementById('rag-string').value;
+  if (!query) return;
+  const limit = parseInt(document.getElementById('rag-string-limit').value) || 10;
+  try {
+    const start = performance.now();
+    const { data, ok } = await apiFetch('/api/string-search', {
+      method: 'POST',
+      body: JSON.stringify({ query, organization_id: getOrg(), limit }),
+    });
+    const elapsed = Math.round(performance.now() - start);
+    showResult(data, 'String search', ok, `${elapsed}ms`);
+  } catch (e) {
+    showResult({ error: e.message }, e.message, false, '');
+  }
+}
+
+// ============================================================================
+// Analytics
+// ============================================================================
+async function fetchEmbeddingStats() {
+  try {
+    const { data } = await apiFetch('/api/analytics/embeddings/stats?organization_id=' + getOrg());
+    const container = document.getElementById('embedding-stats');
+    if (Array.isArray(data)) {
+      container.innerHTML = '<div class="stat-grid">' + data.map(s =>
+        `<div class="stat-card"><div class="stat-value">${s.count}</div><div class="stat-label">${s.entity_type}</div></div>`
+      ).join('') + '</div>';
+    }
+    showResult(data, 'Embedding stats', true, '');
+  } catch (e) {
+    showResult({ error: e.message }, e.message, false, '');
+  }
+}
+
+async function searchEmbeddings() {
+  const query = document.getElementById('emb-query').value;
+  if (!query) return;
+  const entityType = document.getElementById('emb-type').value;
+  const topK = parseInt(document.getElementById('emb-topk').value) || 10;
+  const body = { query, organization_id: getOrg(), top_k: topK };
+  if (entityType) body.entity_type = entityType;
+  try {
+    const start = performance.now();
+    const { data, ok } = await apiFetch('/api/analytics/embeddings/search', { method: 'POST', body: JSON.stringify(body) });
+    const elapsed = Math.round(performance.now() - start);
+    showResult(data, 'Embedding search', ok, `${elapsed}ms`);
+  } catch (e) {
+    showResult({ error: e.message }, e.message, false, '');
+  }
+}
+
+async function triggerBackfill() {
+  try {
+    const { data, ok } = await apiFetch('/api/analytics/embeddings/backfill', {
+      method: 'POST', body: JSON.stringify({ organization_id: getOrg() }),
+    });
+    showResult(data, 'Backfill triggered', ok, '');
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+async function triggerSentimentBackfill() {
+  try {
+    const { data, ok } = await apiFetch('/api/analytics/embeddings/backfill-sentiment', {
+      method: 'POST', body: JSON.stringify({ organization_id: getOrg() }),
+    });
+    showResult(data, 'Sentiment backfill triggered', ok, '');
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+// ============================================================================
+// Files
+// ============================================================================
+async function loadFiles() {
+  try {
+    const { data } = await apiFetch('/api/files?organization_id=' + getOrg());
+    showResult(data, 'Files loaded', true, Array.isArray(data) ? `${data.length} files` : '');
+    renderFilesTable(data);
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+async function loadFileStats() {
+  try {
+    const { data } = await apiFetch('/api/files/stats?organization_id=' + getOrg());
+    showResult(data, 'File stats', true, '');
+    document.getElementById('files-content').innerHTML = `<pre style="color:var(--text);font-size:12px;">${JSON.stringify(data, null, 2)}</pre>`;
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+async function loadFailedFiles() {
+  try {
+    const { data } = await apiFetch('/api/files/failed?organization_id=' + getOrg());
+    showResult(data, 'Failed files', true, '');
+    document.getElementById('files-content').innerHTML = Array.isArray(data) && data.length
+      ? `<p style="color:var(--red);">${data.length} failed files</p><pre style="color:var(--text);font-size:12px;">${JSON.stringify(data, null, 2)}</pre>`
+      : '<p style="color:var(--green);">No failed files</p>';
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+function renderFilesTable(files) {
+  if (!Array.isArray(files) || !files.length) {
+    document.getElementById('files-content').innerHTML = '<p style="color:var(--text2);">No files found</p>';
+    return;
+  }
+  const rows = files.slice(0, 50).map(f => `<tr><td>${f.filename || f.name || '?'}</td><td>${f.status || '?'}</td><td>${f.chunks || '?'}</td></tr>`).join('');
+  document.getElementById('files-content').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="border-bottom:1px solid var(--border);text-align:left;"><th style="padding:6px;">Filename</th><th style="padding:6px;">Status</th><th style="padding:6px;">Chunks</th></tr></thead>
+      <tbody style="color:var(--text2);">${rows}</tbody>
+    </table>
+    ${files.length > 50 ? `<p style="color:var(--text2);font-size:11px;margin-top:8px;">Showing 50 of ${files.length}</p>` : ''}
+  `;
+}
+
+// ============================================================================
+// System
+// ============================================================================
+async function loadSystemInfo(type) {
+  const paths = { health: '/health', info: '/api/info', capabilities: '/api/capabilities', parsers: '/api/system/parsers' };
+  try {
+    const { data, ok } = await apiFetch(paths[type]);
+    showResult(data, type + ' info', ok, '');
+    document.getElementById('system-content').innerHTML = `<div class="card"><div class="card-title">${type}</div><pre style="color:var(--text);font-size:12px;white-space:pre-wrap;">${JSON.stringify(data, null, 2)}</pre></div>`;
+  } catch (e) { showResult({ error: e.message }, e.message, false, ''); }
+}
+
+async function checkHealth() {
+  try {
+    const resp = await fetch(getApiUrl() + '/health');
+    const ok = resp.ok;
+    document.getElementById('status-dot').className = 'status-dot ' + (ok ? 'ok' : 'err');
+    document.getElementById('status-text').textContent = ok ? 'Connected' : 'Error';
+  } catch {
+    document.getElementById('status-dot').className = 'status-dot err';
+    document.getElementById('status-text').textContent = 'Offline';
+  }
+}
+
+// ============================================================================
+// Init
+// ============================================================================
+function detectApiUrl() {
+  // If served from the same host as the API, use that
+  const loc = window.location;
+  if (loc.port === '8080') return loc.origin;
+  // If served from port 8000, assume API is on 8080 of same host
+  if (loc.hostname !== 'localhost' && loc.hostname !== '127.0.0.1') {
+    return `http://${loc.hostname}:8080`;
+  }
+  return 'http://localhost:8080';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('api-url-input').value = detectApiUrl();
+  fetchManifest();
+  // Re-check on URL change
+  document.getElementById('api-url-input').addEventListener('change', () => { fetchManifest(); });
+});
+</script>
+</body>
+</html>

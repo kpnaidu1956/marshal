@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goal-rag
+  namespace: marshal
+  labels:
+    app: goal-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goal-rag
+  template:
+    metadata:
+      labels:
+        app: goal-rag
+    spec:
+      containers:
+        - name: goal-rag
+          image: marshal/goal-rag:latest
+          ports:
+            - containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          envFrom:
+            - configMapRef:
+                name: marshal-config
+            - secretRef:
+                name: marshal-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        # Add cloud-sql-proxy sidecar for GCP Cloud SQL
